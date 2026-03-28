@@ -1,0 +1,5 @@
+
+Gemini 15/15 20/20
+NotebookLM 15/15 20/20
+gemma 10/15 11/20
+Anyting LLM 11/15 20/20
