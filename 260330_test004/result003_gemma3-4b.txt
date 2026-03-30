@@ -1,0 +1,169 @@
+Option Explicit
+
+' 定数定義
+Const BOARD_ROWS As Integer = 8
+Const BOARD_COLS As Integer = 8
+Const STARTING_ROW As Integer = 5
+Const STARTING_COL As Integer = 5
+Const BLACK_STONE As String = "●"
+Const WHITE_STONE As String = "○"
+Const EMPTY_CELL As String = ""
+Const STARTING_BLACK_ROW As Integer = 5
+Const STARTING_BLACK_COL As Integer = 5
+Const STARTING_WHITE_ROW As Integer = 6
+Const STARTING_WHITE_COL As Integer = 6
+
+' 変数定義
+Dim Board(1 To BOARD_ROWS, 1 To BOARD_COLS) As String
+Dim CurrentPlayer As String
+Dim SkipCount As Integer
+
+' モジュール内の関数
+Sub InitializeGame()
+    Dim i As Integer, j As Integer
+
+    ' 盤面の初期化
+    For i = 1 To BOARD_ROWS
+        For j = 1 To BOARD_COLS
+            If i = STARTING_BLACK_ROW And j = STARTING_BLACK_COL Then
+                Board(i, j) = BLACK_STONE
+            ElseIf i = STARTING_WHITE_ROW And j = STARTING_WHITE_COL Then
+                Board(i, j) = WHITE_STONE
+            Else
+                Board(i, j) = EMPTY_CELL
+            End If
+        Next j
+    Next i
+
+    ' 手番の初期設定
+    CurrentPlayer = "黒の番"
+    UpdateB1Cell
+End Sub
+
+Sub PlaceStone()
+    Dim Row As Integer, Col As Integer
+    Dim SelectionAddress As Range
+
+    ' 選択されたセルを取得
+    Set SelectionAddress = Application.Selection
+
+    ' 選択されたセルが盤面内にあるか確認
+    If Not SelectionAddress Is Nothing Then
+        Row = SelectionAddress.Row
+        Col = SelectionAddress.Column
+
+        ' 盤面範囲内であるか確認
+        If Row >= 1 And Row <= BOARD_ROWS And Col >= 1 And Col <= BOARD_COLS Then
+
+            ' 現在の手番が黒か白か確認
+            If CurrentPlayer = "黒の番" Then
+                ' 黒の番で石を置く
+                If Board(Row, Col) = EMPTY_CELL Then
+                    Board(Row, Col) = BLACK_STONE
+                    UpdateB1Cell
+                    CheckIfSkip
+                Else
+                    MsgBox "そこには石が置けません", vbExclamation
+                End If
+            Else
+                ' 白の番で石を置く
+                If Board(Row, Col) = EMPTY_CELL Then
+                    Board(Row, Col) = WHITE_STONE
+                    UpdateB1Cell
+                    CheckIfSkip
+                Else
+                    MsgBox "そこには石が置けません", vbExclamation
+                End If
+            End If
+
+        Else
+            MsgBox "選択されたセルは盤面外です", vbExclamation
+        End If
+    Else
+        MsgBox "石を置くセルを選択してください", vbExclamation
+    End If
+
+    Set SelectionAddress = Nothing
+End Sub
+
+Sub CheckIfSkip()
+    Dim i As Integer, j As Integer
+    Dim CanPlaceStone As Boolean
+
+    CanPlaceStone = False
+    For i = 1 To BOARD_ROWS
+        For j = 1 To BOARD_COLS
+            If Board(i, j) = EMPTY_CELL Then
+                CanPlaceStone = True
+                Exit For
+            End If
+        Next j
+    Next i
+
+    If Not CanPlaceStone Then
+        SkipCount = SkipCount + 1
+        If SkipCount = 2 Then
+            GameOver
+        End If
+        UpdateB1Cell
+    Else
+        SkipCount = 0
+        UpdateB1Cell
+    End If
+End Sub
+
+Sub UpdateB1Cell()
+    ' B1セルに現在の手番を表示
+    ThisWorkbook.Sheets(1).Range("B1").Value = CurrentPlayer
+End Sub
+
+Sub GameOver()
+    Dim BlackCount As Integer, WhiteCount As Integer
+
+    ' 黒石数と白石数のカウント
+    BlackCount = 0
+    WhiteCount = 0
+    For i = 1 To BOARD_ROWS
+        For j = 1 To BOARD_COLS
+            If Board(i, j) = BLACK_STONE Then
+                BlackCount = BlackCount + 1
+            ElseIf Board(i, j) = WHITE_STONE Then
+                WhiteCount = WhiteCount + 1
+            End If
+        Next j
+    Next i
+
+    ' 勝敗判定
+    If BlackCount > WhiteCount Then
+        MsgBox "黒石の勝ち！！", vbInformation
+    ElseIf WhiteCount > BlackCount Then
+        MsgBox "白石の勝ち！！", vbInformation
+    Else
+        MsgBox "引き分け！！", vbInformation
+    End If
+
+    ' 盤面のクリア
+    For i = 1 To BOARD_ROWS
+        For j = 1 To BOARD_COLS
+            Board(i, j) = EMPTY_CELL
+        Next j
+    Next i
+
+    ' 初期化
+    CurrentPlayer = "黒の番"
+    SkipCount = 0
+    UpdateB1Cell
+End Sub
+
+' イベント処理 (Worksheet_SelectionChange)
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    ' 盤面内セルが選択された場合のみ処理を実行
+    If Not Intersect(Target, ThisWorkbook.Sheets(1).Range("B2:I9")) Is Nothing Then
+        Call PlaceStone
+    End If
+End Sub
+
+' 実行
+Sub StartGame()
+    InitializeGame
+End Sub

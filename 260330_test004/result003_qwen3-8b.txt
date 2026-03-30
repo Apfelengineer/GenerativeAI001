@@ -1,0 +1,230 @@
+Option Explicit
+
+' グローバル変数
+Dim board(1 To 8, 1 To 8) As String
+Dim currentPlayer As String
+Dim skipCount As Integer
+Dim gameOver As Boolean
+
+Sub InitializeBoard()
+    ' 初期化：B2:I9のセルを空欄に
+    Dim cell As Range
+    For Each cell In ThisWorkbook.Sheets("Sheet1").Range("B2:I9")
+        cell.Value = ""
+    Next cell
+    
+    ' 初期配置：E5, F6, E6, F5に石を配置
+    ThisWorkbook.Sheets("Sheet1").Range("E5").Value = "●"
+    ThisWorkbook.Sheets("Sheet1").Range("F6").Value = "●"
+    ThisWorkbook.Sheets("Sheet1").Range("E6").Value = "○"
+    ThisWorkbook.Sheets("Sheet1").Range("F5").Value = "○"
+    
+    ' ボード配列を更新
+    UpdateBoardArray
+    
+    ' 初期化後は黒の番
+    currentPlayer = "●"
+    ThisWorkbook.Sheets("Sheet1").Range("B1").Value = "黒の番"
+    skipCount = 0
+    gameOver = False
+End Sub
+
+Sub UpdateBoardArray()
+    Dim cell As Range
+    For Each cell In ThisWorkbook.Sheets("Sheet1").Range("B2:I9")
+        board(cell.Column - 1, cell.Row - 1) = cell.Value
+    Next cell
+End Sub
+
+Sub CheckValidMoves()
+    Dim row As Integer, col As Integer
+    Dim hasValidMove As Boolean
+    hasValidMove = False
+    
+    For row = 1 To 8
+        For col = 1 To 8
+            If board(row, col) = "" Then
+                If CanPlaceStone(row, col) Then
+                    hasValidMove = True
+                    Exit For
+                End If
+            End If
+        Next col
+        If hasValidMove Then Exit For
+    Next row
+    
+    If Not hasValidMove Then
+        ' 置ける場所がない場合、スキップ
+        SkipTurn
+    End If
+End Sub
+
+Function CanPlaceStone(row As Integer, col As Integer) As Boolean
+    Dim dir As Integer
+    Dim r As Integer, c As Integer
+    Dim opposite As String
+    
+    opposite = IIf(currentPlayer = "●", "○", "●")
+    
+    For dir = 1 To 8
+        r = row
+        c = col
+        
+        ' 方向に進む
+        Select Case dir
+            Case 1: r = row - 1: c = col - 1 ' 左上
+            Case 2: r = row - 1: c = col     ' 上
+            Case 3: r = row - 1: c = col + 1 ' 右上
+            Case 4: r = row: c = col + 1     ' 右
+            Case 5: r = row + 1: c = col + 1 ' 右下
+            Case 6: r = row + 1: c = col     ' 下
+            Case 7: r = row + 1: c = col - 1 ' 左下
+            Case 8: r = row: c = col - 1     ' 左
+        End Select
+        
+        ' 石が存在するか確認
+        If r >= 1 And r <= 8 And c >= 1 And c <= 8 Then
+            If board(r, c) = opposite Then
+                ' 連続して反対色の石があるか確認
+                Do
+                    r = r + IIf(dir = 1 Or dir = 3 Or dir = 5 Or dir = 7, -1, 1)
+                    c = c + IIf(dir = 1 Or dir = 2 Or dir = 3 Or dir = 5 Or dir = 6 Or dir = 7, 1, -1)
+                    
+                    If r < 1 Or r > 8 Or c < 1 Or c > 8 Then Exit Do
+                    If board(r, c) = "" Then Exit Do
+                    If board(r, c) = currentPlayer Then
+                        ' 有効な位置
+                        CanPlaceStone = True
+                        Exit Function
+                    End If
+                Loop
+            End If
+        End If
+    Next dir
+End Function
+
+Sub PlaceStone(row As Integer, col As Integer)
+    Dim dir As Integer
+    Dim r As Integer, c As Integer
+    
+    board(row, col) = currentPlayer
+    
+    ' 石をひっくり返す
+    For dir = 1 To 8
+        r = row
+        c = col
+        
+        Select Case dir
+            Case 1: r = row - 1: c = col - 1
+            Case 2: r = row - 1: c = col
+            Case 3: r = row - 1: c = col + 1
+            Case 4: r = row: c = col + 1
+            Case 5: r = row + 1: c = col + 1
+            Case 6: r = row + 1: c = col
+            Case 7: r = row + 1: c = col - 1
+            Case 8: r = row: c = col - 1
+        End Select
+        
+        ' 方向をたどる
+        Do
+            If r < 1 Or r > 8 Or c < 1 Or c > 8 Then Exit Do
+            If board(r, c) = "" Then Exit Do
+            If board(r, c) = IIf(currentPlayer = "●", "○", "●") Then
+                ' 反対色の石がある場合、ひっくり返す
+                Do
+                    r = r + IIf(dir = 1 Or dir = 3 Or dir = 5 Or dir = 7, -1, 1)
+                    c = c + IIf(dir = 1 Or dir = 2 Or dir = 3 Or dir = 5 Or dir = 6 Or dir = 7, 1, -1)
+                    
+                    If r < 1 Or r > 8 Or c < 1 Or c > 8 Then Exit Do
+                    If board(r, c) = currentPlayer Then
+                        ' ひっくり返す
+                        For i = 1 To 8
+                            If i = dir Then
+                                r = row + (i - 1) * IIf(dir = 1 Or dir = 3 Or dir = 5 Or dir = 7, -1, 1)
+                                c = col + (i - 1) * IIf(dir = 1 Or dir = 2 Or dir = 3 Or dir = 5 Or dir = 6 Or dir = 7, 1, -1)
+                                board(r, c) = currentPlayer
+                            End If
+                        Next i
+                        Exit Do
+                    End If
+                Loop
+            End If
+        Loop
+    Next dir
+    
+    ' ボードを更新
+    UpdateBoard
+End Sub
+
+Sub UpdateBoard()
+    Dim cell As Range
+    For Each cell In ThisWorkbook.Sheets("Sheet1").Range("B2:I9")
+        cell.Value = board(cell.Column - 1, cell.Row - 1)
+    Next cell
+End Sub
+
+Sub SkipTurn()
+    skipCount = skipCount + 1
+    currentPlayer = IIf(currentPlayer = "●", "○", "●")
+    ThisWorkbook.Sheets("Sheet1").Range("B1").Value = IIf(currentPlayer = "●", "黒の番", "白の番")
+    
+    ' 連続スキップチェック
+    If skipCount = 2 Then
+        EndGame
+    Else
+        CheckValidMoves
+    End If
+End Sub
+
+Sub EndGame()
+    gameOver = True
+    Dim blackCount As Integer, whiteCount As Integer
+    Dim cell As Range
+    
+    For Each cell In ThisWorkbook.Sheets("Sheet1").Range("B2:I9")
+        If cell.Value = "●" Then blackCount = blackCount + 1
+        If cell.Value = "○" Then whiteCount = whiteCount + 1
+    Next cell
+    
+    Dim result As String
+    result = "ゲーム終了！黒石：" & blackCount & "個" & vbCrLf & "白石：" & whiteCount & "個"
+    
+    If blackCount > whiteCount Then
+        result = result & vbCrLf & "黒石の勝ち！！"
+    ElseIf whiteCount > blackCount Then
+        result = result & vbCrLf & "白石の勝ち！！"
+    Else
+        result = result & vbCrLf & "引き分け！！"
+    End If
+    
+    MsgBox result
+End Sub
+
+Sub Worksheet_SelectionChange(ByVal Target As Range)
+    Dim cell As Range
+    Dim row As Integer, col As Integer
+    
+    ' ボード外の選択は無視
+    If Not Intersect(Target, ThisWorkbook.Sheets("Sheet1").Range("B2:I9")) Is Nothing Then
+        Set cell = Target
+        row = cell.Row - 1
+        col = cell.Column - 1
+        
+        ' ゲーム終了時は処理しない
+        If gameOver Then Exit Sub
+        
+        ' 石が置けるか確認
+        If board(row, col) = "" Then
+            If CanPlaceStone(row, col) Then
+                ' 石を置く
+                PlaceStone row, col
+                currentPlayer = IIf(currentPlayer = "●", "○", "●")
+                ThisWorkbook.Sheets("Sheet1").Range("B1").Value = IIf(currentPlayer = "●", "黒の番", "白の番")
+                skipCount = 0
+                CheckValidMoves
+            Else
+                MsgBox "そこには石が置けません。", vbExclamation
+            End If
+        End If
+    End If
+End Sub

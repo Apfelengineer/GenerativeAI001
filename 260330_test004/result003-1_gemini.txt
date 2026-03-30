@@ -1,0 +1,151 @@
+Option Explicit
+
+Public Const BOARD_RANGE As String = "B2:I9"
+Public Const TURN_CELL As String = "B1"
+Public Const BLACK_STONE As String = "●"
+Public Const WHITE_STONE As String = "○"
+
+Public CurrentTurn As String ' 現在の手番 ("●" or "○")
+Public SkipCount As Integer ' 連続スキップ回数
+
+' 4. 初期化仕様 / 13. 実装上の補足事項
+Sub InitializeGame()
+    Dim r As Range
+    
+    ' 盤面のクリア
+    Range(BOARD_RANGE).ClearContents
+    
+    ' 初期配置
+    Range("E5").Value = BLACK_STONE
+    Range("F6").Value = BLACK_STONE
+    Range("E6").Value = WHITE_STONE
+    Range("F5").Value = WHITE_STONE
+    
+    ' 手番初期化 (先手は黒)
+    CurrentTurn = BLACK_STONE
+    UpdateTurnDisplay
+    SkipCount = 0
+    
+    MsgBox "ゲームを開始します。黒の番です。"
+End Sub
+
+' 10.1 手番表示更新
+Sub UpdateTurnDisplay()
+    If CurrentTurn = BLACK_STONE Then
+        Range(TURN_CELL).Value = "黒の番"
+    Else
+        Range(TURN_CELL).Value = "白の番"
+    End If
+End Sub
+
+' 6.1 配置可能判定ロジック
+Function CanPlace(r As Integer, c As Integer, stone As String) As Boolean
+    If Cells(r, c).Value <> "" Then
+        CanPlace = False
+        Exit Function
+    End If
+    
+    Dim dr As Integer, dc As Integer
+    ' 8方向のチェック
+    for dr = -1 To 1
+        For dc = -1 To 1
+            If Not (dr = 0 And dc = 0) Then
+                If CheckDirection(r, c, dr, dc, stone, False) Then
+                    CanPlace = True
+                    Exit Function
+                End If
+            End If
+        Next dc
+    Next dr
+    
+    CanPlace = False
+End Function
+
+' 方向別の挟める判定および裏返し処理
+Function CheckDirection(r As Integer, c As Integer, dr As Integer, dc As Integer, stone As String, doFlip As Boolean) As Boolean
+    Dim targetStone As String
+    targetStone = IIf(stone = BLACK_STONE, WHITE_STONE, BLACK_STONE)
+    
+    Dim curR As Integer, curC As Integer
+    curR = r + dr
+    curC = c + dc
+    
+    Dim hasOpponentBetween As Boolean
+    hasOpponentBetween = False
+    
+    ' 盤面内かつ相手の石が続く限り進む
+    Do While IsInsideBoard(curR, curC)
+        If Cells(curR, curC).Value = targetStone Then
+            hasOpponentBetween = True
+        ElseIf Cells(curR, curC).Value = stone Then
+            If hasOpponentBetween Then
+                ' 自分の石で挟めた場合
+                If doFlip Then
+                    ' 実際に裏返す処理
+                    Dim flipR As Integer, flipC As Integer
+                    flipR = r + dr
+                    flipC = c + dc
+                    Do Until flipR = curR And flipC = curC
+                        Cells(flipR, flipC).Value = stone
+                        flipR = flipR + dr
+                        flipC = flipC + dc
+                    Loop
+                End If
+                CheckDirection = True
+                Exit Function
+            Else
+                Exit Do
+            End If
+        Else
+            Exit Do
+        End If
+        curR = curR + dr
+        curC = curC + dc
+    Loop
+    
+    CheckDirection = False
+End Function
+
+' 盤面内判定
+Function IsInsideBoard(r As Integer, c As Integer) As Boolean
+    IsInsideBoard = (r >= 2 And r <= 9 And c >= 2 And c <= 9)
+End Function
+
+' 8. スキップ判定
+Function HasValidMove(stone As String) As Boolean
+    Dim r As Integer, c As Integer
+    For r = 2 To 9
+        For c = 2 To 9
+            If CanPlace(r, c, stone) Then
+                HasValidMove = True
+                Exit Function
+            End If
+        Next c
+    Next r
+    HasValidMove = False
+End Function
+
+' 9. ゲーム終了・勝敗判定
+Sub EndGame()
+    Dim blackCount As Integer, whiteCount As Integer
+    Dim cell As Range
+    
+    For Each cell In Range(BOARD_RANGE)
+        If cell.Value = BLACK_STONE Then blackCount = blackCount + 1
+        If cell.Value = WHITE_STONE Then whiteCount = whiteCount + 1
+    Next cell
+    
+    Dim resultMsg As String
+    resultMsg = "ゲーム終了！黒石：" & blackCount & "個" & vbCrLf & _
+                "白石：" & whiteCount & "個" & vbCrLf
+                
+    If blackCount > whiteCount Then
+        resultMsg = resultMsg & "黒石の勝ち！！"
+    ElseIf whiteCount > blackCount Then
+        resultMsg = resultMsg & "白石の勝ち！！"
+    Else
+        resultMsg = resultMsg & "引き分け！！"
+    End If
+    
+    MsgBox resultMsg
+End Sub

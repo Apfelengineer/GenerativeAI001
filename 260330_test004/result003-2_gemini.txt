@@ -1,0 +1,66 @@
+Option Explicit
+
+' 11.1 セル選択時処理
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    ' 複数セル選択時は無視
+    If Target.Count > 1 Then Exit Sub
+    
+    ' 7.2 盤面外選択時は何もしない
+    If Intersect(Target, Range(BOARD_RANGE)) Is Nothing Then Exit Sub
+    
+    ' まだゲームが始まっていない（手番変数が空）場合は初期化
+    If CurrentTurn = "" Then InitializeGame: Exit Sub
+
+    Dim r As Integer, c As Integer
+    r = Target.Row
+    c = Target.Column
+
+    ' 5.1/6.1 配置判定
+    If CanPlace(r, c, CurrentTurn) Then
+        ' 石を置く
+        Target.Value = CurrentTurn
+        
+        ' 6.2 裏返し処理
+        Dim dr As Integer, dc As Integer
+        For dr = -1 To 1
+            For dc = -1 To 1
+                If Not (dr = 0 And dc = 0) Then
+                    Call CheckDirection(r, c, dr, dc, CurrentTurn, True)
+                End If
+            Next dc
+        Next dr
+        
+        ' 10.3 スキップ回数リセット
+        SkipCount = 0
+        
+        ' 手番交代
+        CurrentTurn = IIf(CurrentTurn = BLACK_STONE, WHITE_STONE, BLACK_STONE)
+        UpdateTurnDisplay
+        
+        ' 次の手番のチェック
+        CheckNextMove
+    Else
+        ' 7.1 配置不可メッセージ
+        MsgBox "そこには石が置けません"
+    End If
+End Sub
+
+' スキップおよび終了の連続判定
+Sub CheckNextMove()
+    If Not HasValidMove(CurrentTurn) Then
+        SkipCount = SkipCount + 1
+        
+        If SkipCount >= 2 Then
+            ' 9.1 2回連続スキップで終了
+            EndGame
+            CurrentTurn = "" ' ゲーム終了状態
+        Else
+            ' 8.1 スキップ発生
+            MsgBox "石を置く場所がありません"
+            CurrentTurn = IIf(CurrentTurn = BLACK_STONE, WHITE_STONE, BLACK_STONE)
+            UpdateTurnDisplay
+            ' 交代した相手も置けないか再度チェック
+            CheckNextMove
+        End If
+    End If
+End Sub

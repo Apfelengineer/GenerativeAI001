@@ -1,0 +1,278 @@
+Option Explicit
+
+'----- 10.3 Internal variables -------------------------------------------------
+Private Const BoardRng As String = "B2:I9"   ' 8 × 8 board
+Private Const TurnCell As String = "B1"     ' current turn display
+Private Const BlackStone As String = "●"
+Private Const WhiteStone As String = "○"
+
+Private CurrentTurn As String   ' "B" = 黒, "W" = 白
+Private SkipCnt As Long          ' 連続スキップ回数
+
+' 方向定義（dx, dy）
+Private Type Dir
+    x As Long
+    y As Long
+End Type
+Private Directions() As Dir
+
+' -----------------------------------------------------------------------------
+
+
+'----- 13. 初期化 ----------------------------------------------------------------
+Public Sub ResetGame()
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    Dim cell As Range
+    Application.EnableEvents = False
+    ws.Range(BoardRng).ClearContents           ' 盤面全クリア
+    ws.Range("B1").ClearContents
+    
+    ' 初期配置
+    ws.Range("E5").Value = BlackStone
+    ws.Range("F6").Value = BlackStone
+    ws.Range("E6").Value = WhiteStone
+    ws.Range("F5").Value = WhiteStone
+    
+    CurrentTurn = "B"                          ' 黒先手
+    SkipCnt = 0
+    ws.Range(TurnCell).Value = "黒の番"
+    Application.EnableEvents = True
+End Sub
+
+
+'----- 6.1 配置可能判定 ---------------------------------------------------------
+Private Function CanPlace(r As Long, c As Long, turn As String) As Boolean
+    ' turn: "B" or "W"
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    Dim cell As Range
+    Set cell = ws.Cells(r, c)
+    
+    If cell.Value <> "" Then
+        CanPlace = False: Exit Function
+    End If
+    
+    Dim dirIdx As Long
+    Dim hasAdj As Boolean
+    hasAdj = False
+    
+    For dirIdx = LBound(Directions) To UBound(Directions)
+        If HasFlippableInDirection(r, c, Directions(dirIdx).x, Directions(dirIdx).y, turn) Then
+            hasAdj = True
+            Exit For
+        End If
+    Next dirIdx
+    
+    CanPlace = hasAdj
+End Function
+
+
+'----- 6.2 裏返し判定 (内部) ----------------------------------------------------
+Private Function HasFlippableInDirection(r As Long, c As Long, dx As Long, dy As Long, turn As String) As Boolean
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    Dim r2 As Long, c2 As Long
+    Dim firstOpposite As Boolean
+    
+    r2 = r + dx: c2 = c + dy
+    If Not InBoard(r2, c2) Then HasFlippableInDirection = False: Exit Function
+    
+    Dim oppChar As String
+    oppChar = OpponentStone(turn)
+    
+    If ws.Cells(r2, c2).Value <> oppChar Then
+        HasFlippableInDirection = False: Exit Function
+    End If
+    
+    firstOpposite = True
+    r2 = r2 + dx: c2 = c2 + dy
+    
+    Do While InBoard(r2, c2)
+        Dim curVal As String
+        curVal = ws.Cells(r2, c2).Value
+        If curVal = OpponentStone(turn) Then
+            r2 = r2 + dx: c2 = c2 + dy
+        ElseIf curVal = StoneChar(turn) Then
+            HasFlippableInDirection = True
+            Exit Function
+        Else
+            Exit Do
+        End If
+    Loop
+    HasFlippableInDirection = False
+End Function
+
+
+'----- 6.2 裏返し処理 ------------------------------------------------------------
+Private Sub FlipStones(r As Long, c As Long, turn As String)
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    Dim dirIdx As Long
+    For dirIdx = LBound(Directions) To UBound(Directions)
+        If HasFlippableInDirection(r, c, Directions(dirIdx).x, Directions(dirIdx).y, turn) Then
+            Dim r2 As Long, c2 As Long
+            r2 = r + Directions(dirIdx).x
+            c2 = c + Directions(dirIdx).y
+            Do While InBoard(r2, c2) And ws.Cells(r2, c2).Value = OpponentStone(turn)
+                ws.Cells(r2, c2).Value = StoneChar(turn)
+                r2 = r2 + Directions(dirIdx).x
+                c2 = c2 + Directions(dirIdx).y
+            Loop
+        End If
+    Next dirIdx
+End Sub
+
+
+'----- 5.1 石置き ---------------------------------------------------------------
+Private Function StoneChar(turn As String) As String
+    If turn = "B" Then
+        StoneChar = "●"
+    Else
+        StoneChar = "○"
+    End If
+End Function
+
+Private Function OpponentStone(turn As String) As String
+    If turn = "B" Then
+        OpponentStone = "○"
+    Else
+        OpponentStone = "●"
+    End If
+End Function
+
+
+'----- 5.2 現在手番が置ける場所があるか判定 ---------------------------------
+Private Function HasAnyValidMove(turn As String) As Boolean
+    Dim r As Long, c As Long
+    For r = 2 To 9
+        For c = 2 To 9
+            If CanPlace(r, c, turn) Then
+                HasAnyValidMove = True
+                Exit Function
+            End If
+        Next c
+    Next r
+    HasAnyValidMove = False
+End Function
+
+
+'----- 8.1 スキップ判定 & 8.3 連続スキップ --------------------------------------
+Private Sub HandleTurnChange()
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    ws.Range(TurnCell).Value = TurnText(CurrentTurn)
+    If Not HasAnyValidMove(CurrentTurn) Then
+        SkipCnt = SkipCnt + 1
+        MsgBox "石を置く場所がありません", vbInformation
+        If SkipCnt >= 2 Then
+            EndGame
+        Else
+            SwitchTurn
+            ws.Range(TurnCell).Value = TurnText(CurrentTurn)
+        End If
+    Else
+        SkipCnt = 0
+    End If
+End Sub
+
+Private Sub SwitchTurn()
+    If CurrentTurn = "B" Then CurrentTurn = "W" Else CurrentTurn = "B"
+End Sub
+
+Private Function TurnText(turn As String) As String
+    If turn = "B" Then TurnText = "黒の番" Else TurnText = "白の番"
+End Function
+
+
+'----- 9.4 終了メッセージ ---------------------------------------------------------
+Private Sub EndGame()
+    Dim ws As Worksheet: Set ws = ThisWorkbook.ActiveSheet
+    Dim Bn As Long, Wn As Long
+    Bn = 0: Wn = 0
+    
+    Dim r As Long, c As Long
+    For r = 2 To 9
+        For c = 2 To 9
+            If ws.Cells(r, c).Value = "●" Then Bn = Bn + 1
+            If ws.Cells(r, c).Value = "○" Then Wn = Wn + 1
+        Next c
+    Next r
+    
+    Dim result As String
+    If Bn > Wn Then
+        result = "黒石"
+    ElseIf Wn > Bn Then
+        result = "白石"
+    Else
+        result = "引き分け"
+    End If
+    
+    Dim msg As String
+    If result = "引き分け" Then
+        msg = "ゲーム終了！黒石：" & Bn & "個" & vbCrLf & _
+              "白石：" & Wn & "個" & vbCrLf & _
+              "引き分け！！"
+    Else
+        msg = "ゲーム終了！黒石：" & Bn & "個" & vbCrLf & _
+              "白石：" & Wn & "個" & vbCrLf & _
+              "(" & result & ")の勝ち！！"
+    End If
+    
+    MsgBox msg, vbInformation
+    ResetGame
+End Sub
+
+
+'----- 11.1 Worksheet_SelectionChange ------------------------------------------------
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    Dim ws As Worksheet: Set ws = Me
+    Application.EnableEvents = False
+    
+    ' 1. 盤面内か判定
+    If Intersect(Target, ws.Range(BoardRng)) Is Nothing Then
+        ' 盤面外（例：B1）に選択されたら単にスキップ処理を行うだけ
+        HandleTurnChange
+        Application.EnableEvents = True
+        Exit Sub
+    End If
+    
+    ' 盤面セルの座標（行・列）
+    Dim r As Long: r = Target.Row
+    Dim c As Long: c = Target.Column
+    
+    ' 2. 現在の手番で置けるか？
+    If Not CanPlace(r, c, CurrentTurn) Then
+        MsgBox "ここには置けません", vbExclamation
+        Application.EnableEvents = True
+        Exit Sub
+    End If
+    
+    ' 3. 石を置く
+    ws.Cells(r, c).Value = StoneChar(CurrentTurn)
+    
+    ' 4. 裏返し
+    FlipStones r, c, CurrentTurn
+    
+    ' 5. つぎの手に移る
+    SwitchTurn
+    HandleTurnChange
+    
+    Application.EnableEvents = True
+End Sub
+
+
+'----- 12. 内部 – 盤面チェック ----------------------------------------------
+Private Function InBoard(r As Long, c As Long) As Boolean
+    InBoard = (r >= 2 And r <= 9 And c >= 2 And c <= 9)
+End Function
+' -----------------------------------------------------------------------------
+
+
+'----- 7.2 方向テーブルを一度だけ初期化 ------------------------------------------
+Private Sub Module_Startup()
+    ReDim Directions(1 To 8)
+    Directions(1).x = 0:  Directions(1).y = 1   ' 上
+    Directions(2).x = 1:  Directions(2).y = 0   ' 右
+    Directions(3).x = 0:  Directions(3).y = -1  ' 下
+    Directions(4).x = -1: Directions(4).y = 0   ' 左
+    Directions(5).x = 1:  Directions(5).y = 1   ' 右上
+    Directions(6).x = 1:  Directions(6).y = -1  ' 右下
+    Directions(7).x = -1: Directions(7).y = -1  ' 左下
+    Directions(8).x = -1: Directions(8).y = 1   ' 左上
+End Sub
