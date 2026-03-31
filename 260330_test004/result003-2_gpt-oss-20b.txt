@@ -1,0 +1,3 @@
+Private Sub Workbook_Open()
+    Call ResetGame          ' ← 盤面を初期化
+End Sub
